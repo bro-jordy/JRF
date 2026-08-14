@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BackLink } from "@/components/ui/BackLink";
 import { AddEntryForm } from "@/components/investments/AddEntryForm";
+import { FetchPriceButton } from "@/components/investments/FetchPriceButton";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
 import { formatIDR } from "@/lib/format";
 import { deleteEntry } from "@/app/(app)/investments/actions";
@@ -61,6 +62,9 @@ export default async function InvestmentDetailPage({ params }: Props) {
           <div className={`rounded-lg px-3 py-2 text-sm font-medium ${isGain ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
             {isGain ? "▲" : "▼"} {isGain ? "+" : ""}{formatIDR(gainLoss)} ({isGain ? "+" : ""}{gainPct}%)
           </div>
+        )}
+        {holding.ticker && (
+          <FetchPriceButton holdingId={holding.id} ticker={holding.ticker} />
         )}
       </div>
 

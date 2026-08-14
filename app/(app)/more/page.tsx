@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/more/LogoutButton";
+import { PushSubscribeButton } from "@/components/notifications/PushSubscribeButton";
 
 const MENU = [
   { href: "/accounts", label: "Accounts" },
@@ -9,6 +10,9 @@ const MENU = [
   { href: "/budget", label: "Budget" },
   { href: "/report", label: "Monthly Report" },
   { href: "/investments", label: "Investments" },
+  { href: "/debts", label: "Debts" },
+  { href: "/bills", label: "Bills" },
+  { href: "/networth", label: "Net Worth" },
 ];
 
 export default async function MorePage() {
@@ -56,6 +60,7 @@ export default async function MorePage() {
         ))}
       </nav>
 
+      <PushSubscribeButton />
       <LogoutButton />
     </main>
   );

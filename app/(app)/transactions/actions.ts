@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { triggerBudgetCheck } from "@/lib/push/budgetCheck";
 
 export type TransactionFormState = { error: string | null };
 
@@ -46,6 +47,12 @@ export async function createTransaction(
   revalidatePath("/transactions");
   revalidatePath("/");
   revalidatePath("/accounts");
+
+  // Fire budget check async for expense transactions (non-blocking)
+  if (type === "expense") {
+    triggerBudgetCheck(membership.household_id).catch(() => {});
+  }
+
   return { error: null };
 }
 
