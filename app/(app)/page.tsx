@@ -78,6 +78,7 @@ export default async function DashboardPage({
     { data: periodTransactions },
     { data: budgets },
     { data: currentMonthTransactions },
+    { data: investmentHoldings },
   ] = await Promise.all([
     supabase
       .from("accounts")
@@ -96,6 +97,10 @@ export default async function DashboardPage({
       .eq("type", "expense")
       .gte("transaction_date", `${currentMonthStr()}-01`)
       .lte("transaction_date", `${currentMonthStr()}-31`),
+    supabase
+      .from("investment_holdings")
+      .select("id, name, ticker, current_value, owner_id")
+      .order("name"),
   ]);
 
   const balanceByAccount = new Map(
@@ -342,6 +347,53 @@ export default async function DashboardPage({
                 </div>
               );
             })}
+          </section>
+        )}
+
+        {(investmentHoldings?.length ?? 0) > 0 && (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-neutral-500">Investments</h2>
+              <a href="/investments" className="text-xs text-neutral-400">See all ›</a>
+            </div>
+            {(() => {
+              const holdings = investmentHoldings ?? [];
+              const totalValue = holdings.reduce((s, h) => s + h.current_value, 0);
+              const byOwner = new Map<string, typeof holdings>();
+              for (const h of holdings) {
+                const list = byOwner.get(h.owner_id) ?? [];
+                list.push(h);
+                byOwner.set(h.owner_id, list);
+              }
+              return (
+                <>
+                  <div className="rounded-xl border border-neutral-200 p-4">
+                    <p className="text-xs text-neutral-500">Total Portfolio</p>
+                    <Amount value={totalValue} className="mt-1 text-xl font-semibold" />
+                  </div>
+                  {[...byOwner.entries()].map(([ownerId, ownerHoldings]) => (
+                    <div key={ownerId} className="rounded-xl border border-neutral-200 p-4">
+                      <p className="mb-2 text-sm font-medium">{nameByOwner.get(ownerId) ?? "Unknown"}</p>
+                      <ul className="flex flex-col gap-2">
+                        {ownerHoldings.map((h) => (
+                          <li key={h.id} className="flex items-center justify-between text-sm">
+                            <span className="flex items-center gap-1.5 text-neutral-600">
+                              {h.name}
+                              {h.ticker && (
+                                <span className="rounded bg-neutral-100 px-1 py-0.5 text-xs text-neutral-400">
+                                  {h.ticker}
+                                </span>
+                              )}
+                            </span>
+                            <Amount value={h.current_value} className="font-medium" />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
           </section>
         )}
       </main>
