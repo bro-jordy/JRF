@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AddTransactionForm } from "@/components/transactions/AddTransactionForm";
 import { TransactionFilters } from "@/components/transactions/TransactionFilters";
 import { TransactionRow } from "@/components/transactions/TransactionRow";
+import { ExportCSVButton } from "@/components/transactions/ExportCSVButton";
 
 type Transaction = {
   id: string;
@@ -18,7 +19,7 @@ type Transaction = {
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; from?: string; to?: string; owner?: string }>;
+  searchParams: Promise<{ type?: string; from?: string; to?: string; owner?: string; search?: string }>;
 }) {
   const supabase = await createClient();
   const params = await searchParams;
@@ -26,6 +27,7 @@ export default async function TransactionsPage({
   const from = params.from ?? "";
   const to = params.to ?? "";
   const owner = params.owner ?? "all";
+  const search = params.search ?? "";
 
   const [
     { data: accounts },
@@ -64,6 +66,7 @@ export default async function TransactionsPage({
     if (from) transactionsQuery = transactionsQuery.gte("transaction_date", from);
     if (to) transactionsQuery = transactionsQuery.lte("transaction_date", to);
     if (ownerAccountIds) transactionsQuery = transactionsQuery.in("account_id", ownerAccountIds);
+    if (search) transactionsQuery = transactionsQuery.ilike("description", `%${search}%`);
 
     ({ data: transactions } = await transactionsQuery);
   }
@@ -86,13 +89,17 @@ export default async function TransactionsPage({
 
   return (
     <main className="flex flex-col gap-6 px-4 pt-6 pb-24">
-      <h1 className="text-xl font-semibold">Transactions</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Transactions</h1>
+        <ExportCSVButton />
+      </div>
 
       <TransactionFilters
         type={type}
         from={from}
         to={to}
         owner={owner}
+        search={search}
         owners={profiles ?? []}
       />
 

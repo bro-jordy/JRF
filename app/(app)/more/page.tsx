@@ -5,6 +5,7 @@ import { LogoutButton } from "@/components/more/LogoutButton";
 const MENU = [
   { href: "/accounts", label: "Accounts" },
   { href: "/goals", label: "Saving Goals" },
+  { href: "/categories", label: "Categories" },
 ];
 
 export default async function MorePage() {

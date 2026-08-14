@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { monthRange, yearRange } from "@/lib/date";
+import { monthRange, yearRange, toDateStr } from "@/lib/date";
 import { BalanceVisibilityProvider } from "@/components/home/BalanceVisibilityContext";
 import { HideBalanceButton } from "@/components/home/HideBalanceButton";
 import { MoreMenuButton } from "@/components/home/MoreMenuButton";
 import { PeriodToggle } from "@/components/home/PeriodToggle";
 import { Amount } from "@/components/home/Amount";
 import { ExpenseBreakdownChart, type Slice } from "@/components/home/ExpenseBreakdownChart";
+import { IncomeExpenseTrendChart, type MonthStat } from "@/components/home/IncomeExpenseTrendChart";
 
 type Account = {
   id: string;
@@ -65,6 +66,23 @@ export default async function DashboardPage({
       .lte("transaction_date", to);
     periodLabel = label;
   }
+
+  // Trend: last 6 months
+  const trendMonths: MonthStat[] = [];
+  const trendPromises = Array.from({ length: 6 }, (_, i) => {
+    const { from, to, label } = monthRange(5 - i);
+    return supabase
+      .from("transactions")
+      .select("type, amount")
+      .gte("transaction_date", from)
+      .lte("transaction_date", to)
+      .then(({ data }) => {
+        const income = (data ?? []).filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+        const expense = (data ?? []).filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+        trendMonths[5 - i] = { label: label.split(" ")[0].slice(0, 3), income, expense };
+      });
+  });
+  await Promise.all(trendPromises);
 
   const [
     { data: accounts },
@@ -175,6 +193,8 @@ export default async function DashboardPage({
         </div>
 
         <ExpenseBreakdownChart data={expenseChartData} total={periodExpense} />
+
+        <IncomeExpenseTrendChart data={trendMonths} />
 
         <section className="flex flex-col gap-4">
           <h2 className="text-sm font-medium text-neutral-500">Accounts</h2>

@@ -17,18 +17,21 @@ export function TransactionFilters({
   from,
   to,
   owner,
+  search,
   owners,
 }: {
   type: string;
   from: string;
   to: string;
   owner: string;
+  search: string;
   owners: { id: string; display_name: string }[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const hasFilters = type !== "all" || owner !== "all" || !!from || !!to;
+  const hasFilters = type !== "all" || owner !== "all" || !!from || !!to || !!search;
   const [expanded, setExpanded] = useState(hasFilters);
+  const [searchValue, setSearchValue] = useState(search);
 
   function updateParams(next: Record<string, string>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -102,6 +105,18 @@ export function TransactionFilters({
             ))}
           </div>
 
+          <input
+            type="search"
+            placeholder="Search description..."
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") updateParams({ search: searchValue });
+            }}
+            onBlur={() => updateParams({ search: searchValue })}
+            className={`${FIELD_CLASS} h-10 text-sm`}
+          />
+
           <div className="flex items-center gap-2">
             <input
               type="date"
@@ -127,7 +142,10 @@ export function TransactionFilters({
             </button>
             {hasFilters && (
               <button
-                onClick={() => updateParams({ type: "", owner: "", from: "", to: "" })}
+                onClick={() => {
+                  setSearchValue("");
+                  updateParams({ type: "", owner: "", from: "", to: "", search: "" });
+                }}
                 className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-600"
               >
                 Clear
