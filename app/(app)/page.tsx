@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { monthRange, yearRange, toDateStr } from "@/lib/date";
+import { monthRange, yearRange, toDateStr, currentMonthStr } from "@/lib/date";
 import { BalanceVisibilityProvider } from "@/components/home/BalanceVisibilityContext";
 import { HideBalanceButton } from "@/components/home/HideBalanceButton";
 import { MoreMenuButton } from "@/components/home/MoreMenuButton";
@@ -52,7 +52,7 @@ export default async function DashboardPage({
   let periodLabel: string | null = null;
   let periodTransactionsQuery = supabase
     .from("transactions")
-    .select("type, amount, saving_goal_id, category_id");
+    .select("type, amount, saving_goal_id, category_id, owner_id");
   if (period === "month") {
     const { from, to, label } = monthRange(offset);
     periodTransactionsQuery = periodTransactionsQuery
@@ -92,6 +92,8 @@ export default async function DashboardPage({
     { data: goals },
     { data: categories },
     { data: periodTransactions },
+    { data: budgets },
+    { data: currentMonthTransactions },
   ] = await Promise.all([
     supabase
       .from("accounts")
@@ -103,6 +105,13 @@ export default async function DashboardPage({
     supabase.from("saving_goal_progress").select("*").eq("status", "active"),
     supabase.from("categories").select("id, name"),
     periodTransactionsQuery,
+    supabase.from("budgets").select("id, category_id, amount").eq("month", currentMonthStr()),
+    supabase
+      .from("transactions")
+      .select("category_id, amount")
+      .eq("type", "expense")
+      .gte("transaction_date", `${currentMonthStr()}-01`)
+      .lte("transaction_date", `${currentMonthStr()}-31`),
   ]);
 
   const balanceByAccount = new Map(
@@ -150,6 +159,26 @@ export default async function DashboardPage({
     const key = t.category_id ?? "uncategorized";
     expenseByCategory.set(key, (expenseByCategory.get(key) ?? 0) + t.amount);
   }
+
+  // Budget: spent per category for current month
+  const currentMonthSpent = new Map<string, number>();
+  for (const t of currentMonthTransactions ?? []) {
+    if (!t.category_id) continue;
+    currentMonthSpent.set(t.category_id, (currentMonthSpent.get(t.category_id) ?? 0) + t.amount);
+  }
+  const budgetList = (budgets ?? []) as { id: string; category_id: string; amount: number }[];
+
+  // Split view: income & expense per person for selected period
+  const incomeByPerson = new Map<string, number>();
+  const expenseByPerson = new Map<string, number>();
+  for (const t of periodTransactions ?? []) {
+    if (t.type === "income") {
+      incomeByPerson.set(t.owner_id, (incomeByPerson.get(t.owner_id) ?? 0) + t.amount);
+    } else if (t.type === "expense") {
+      expenseByPerson.set(t.owner_id, (expenseByPerson.get(t.owner_id) ?? 0) + t.amount);
+    }
+  }
+  const splitOwnerIds = [...new Set([...incomeByPerson.keys(), ...expenseByPerson.keys()])];
   const sortedExpenseCategories = [...expenseByCategory.entries()].sort((a, b) => b[1] - a[1]);
   const topCategories = sortedExpenseCategories.slice(0, 5);
   const otherTotal = sortedExpenseCategories
@@ -195,6 +224,56 @@ export default async function DashboardPage({
         <ExpenseBreakdownChart data={expenseChartData} total={periodExpense} />
 
         <IncomeExpenseTrendChart data={trendMonths} />
+
+        {budgetList.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-neutral-500">Budget This Month</h2>
+              <a href="/budget" className="text-xs text-neutral-400">See all ›</a>
+            </div>
+            {budgetList.map((b) => {
+              const spent = currentMonthSpent.get(b.category_id) ?? 0;
+              const pct = Math.min(100, Math.round((spent / b.amount) * 100));
+              const isOver = spent > b.amount;
+              const barColor = isOver ? "bg-red-500" : pct >= 80 ? "bg-amber-400" : "bg-emerald-500";
+              return (
+                <div key={b.id} className="rounded-xl border border-neutral-200 p-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{categoryNameById.get(b.category_id) ?? "-"}</span>
+                    <span className={isOver ? "text-red-500 font-semibold" : "text-neutral-500"}>
+                      <Amount value={spent} className="inline" /> / <Amount value={b.amount} className="inline" />
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-neutral-100">
+                    <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  {isOver && (
+                    <p className="mt-1 text-xs text-red-500">Over budget!</p>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )}
+
+        {splitOwnerIds.length > 1 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-neutral-500">Per Person {periodLabel ? `· ${periodLabel}` : ""}</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {splitOwnerIds.map((ownerId) => {
+                const inc = incomeByPerson.get(ownerId) ?? 0;
+                const exp = expenseByPerson.get(ownerId) ?? 0;
+                return (
+                  <div key={ownerId} className="rounded-xl border border-neutral-200 p-3">
+                    <p className="text-sm font-medium">{nameByOwner.get(ownerId) ?? "Unknown"}</p>
+                    <p className="mt-1 text-xs text-emerald-600">+<Amount value={inc} className="inline" /></p>
+                    <p className="text-xs text-red-500">-<Amount value={exp} className="inline" /></p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section className="flex flex-col gap-4">
           <h2 className="text-sm font-medium text-neutral-500">Accounts</h2>

@@ -14,6 +14,7 @@ type Transaction = {
   destination_account_id: string | null;
   category_id: string | null;
   saving_goal_id: string | null;
+  is_recurring: boolean;
 };
 
 export default async function TransactionsPage({
@@ -56,7 +57,7 @@ export default async function TransactionsPage({
     let transactionsQuery = supabase
       .from("transactions")
       .select(
-        "id, type, amount, description, transaction_date, account_id, destination_account_id, category_id, saving_goal_id"
+        "id, type, amount, description, transaction_date, account_id, destination_account_id, category_id, saving_goal_id, is_recurring"
       )
       .order("transaction_date", { ascending: false })
       .order("created_at", { ascending: false })

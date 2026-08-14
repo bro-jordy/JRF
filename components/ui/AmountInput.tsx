@@ -9,11 +9,13 @@ export function AmountInput({
   name,
   label,
   defaultValue,
+  required,
 }: {
   id: string;
   name: string;
-  label: string;
+  label?: string;
   defaultValue?: number;
+  required?: boolean;
 }) {
   const initial = defaultValue != null ? defaultValue.toFixed(2).split(".") : null;
   const [whole, setWhole] = useState(initial ? initial[0] : "");
@@ -24,9 +26,11 @@ export function AmountInput({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
+      {label && (
+        <label htmlFor={id} className="text-sm font-medium">
+          {label}
+        </label>
+      )}
       <div className="flex h-11 items-center gap-1 rounded-lg border border-neutral-300 px-3 focus-within:border-neutral-500">
         <span className="text-neutral-400">Rp</span>
         <input
@@ -50,7 +54,7 @@ export function AmountInput({
           className="w-8 border-none bg-transparent p-0 outline-none"
         />
       </div>
-      <input type="hidden" name={name} value={rawValue} />
+      <input type="hidden" name={name} value={rawValue} required={required} />
     </div>
   );
 }

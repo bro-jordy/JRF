@@ -9,6 +9,13 @@ export function todayStr() {
   return toDateStr(new Date());
 }
 
+export function currentMonthStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
 export function monthStartStr() {
   const d = new Date();
   d.setDate(1);

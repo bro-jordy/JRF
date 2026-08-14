@@ -38,6 +38,7 @@ export async function createTransaction(
     amount: Number(formData.get("amount")),
     description: (formData.get("description") as string) || null,
     transaction_date: formData.get("transaction_date") as string,
+    is_recurring: formData.get("is_recurring") === "true",
   });
 
   if (error) return { error: error.message };
@@ -70,6 +71,7 @@ export async function updateTransaction(
       amount: Number(formData.get("amount")),
       description: (formData.get("description") as string) || null,
       transaction_date: formData.get("transaction_date") as string,
+      is_recurring: formData.get("is_recurring") === "true",
     })
     .eq("id", id);
 

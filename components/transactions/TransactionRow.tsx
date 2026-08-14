@@ -7,6 +7,7 @@ import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
+import { Toggle } from "@/components/ui/Toggle";
 
 type Account = { id: string; name: string };
 type Category = { id: string; name: string; type: "income" | "expense" };
@@ -22,6 +23,7 @@ type Transaction = {
   destination_account_id: string | null;
   category_id: string | null;
   saving_goal_id: string | null;
+  is_recurring: boolean;
 };
 
 const TYPES = [
@@ -51,6 +53,7 @@ export function TransactionRow({
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState(transaction.type);
+  const [isRecurring, setIsRecurring] = useState(transaction.is_recurring);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -78,7 +81,12 @@ export function TransactionRow({
         className="flex w-full items-center justify-between rounded-xl border border-neutral-200 p-4 text-left"
       >
         <div>
-          <p className="text-sm font-medium">{label}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium">{label}</p>
+            {transaction.is_recurring && (
+              <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500">↻</span>
+            )}
+          </div>
           {sublabel && <p className="text-xs text-neutral-500">{sublabel}</p>}
           <p className="text-xs text-neutral-400">{transaction.transaction_date}</p>
         </div>
@@ -228,6 +236,13 @@ export function TransactionRow({
               className={FIELD_CLASS}
             />
           </div>
+
+          <Toggle
+            label="Recurring monthly"
+            name="is_recurring"
+            checked={isRecurring}
+            onChange={setIsRecurring}
+          />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 

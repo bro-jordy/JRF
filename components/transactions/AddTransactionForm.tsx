@@ -5,6 +5,7 @@ import { createTransaction } from "@/app/(app)/transactions/actions";
 import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
+import { Toggle } from "@/components/ui/Toggle";
 import { todayStr } from "@/lib/date";
 
 type Account = { id: string; name: string };
@@ -30,6 +31,7 @@ export function AddTransactionForm({
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("expense");
+  const [isRecurring, setIsRecurring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -192,6 +194,13 @@ export function AddTransactionForm({
             </label>
             <input id="description" name="description" className={FIELD_CLASS} />
           </div>
+
+          <Toggle
+            label="Recurring monthly"
+            name="is_recurring"
+            checked={isRecurring}
+            onChange={setIsRecurring}
+          />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 

@@ -6,6 +6,8 @@ const MENU = [
   { href: "/accounts", label: "Accounts" },
   { href: "/goals", label: "Saving Goals" },
   { href: "/categories", label: "Categories" },
+  { href: "/budget", label: "Budget" },
+  { href: "/report", label: "Monthly Report" },
 ];
 
 export default async function MorePage() {
