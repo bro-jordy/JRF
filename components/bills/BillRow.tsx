@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { updateBill, markBillPaid, deleteBill } from "@/app/(app)/bills/actions";
+import { updateBill, payBill, deleteBill } from "@/app/(app)/bills/actions";
 import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
@@ -10,6 +10,7 @@ import { formatIDR } from "@/lib/format";
 import { todayStr } from "@/lib/date";
 
 type Category = { id: string; name: string };
+type Account = { id: string; name: string };
 
 type Bill = {
   id: string;
@@ -21,13 +22,27 @@ type Bill = {
   is_active: boolean;
 };
 
-export function BillRow({ bill, categories }: { bill: Bill; categories: Category[] }) {
+export function BillRow({
+  bill,
+  categories,
+  accounts,
+  defaultAccountId,
+}: {
+  bill: Bill;
+  categories: Category[];
+  accounts: Account[];
+  defaultAccountId?: string;
+}) {
   const [editOpen, setEditOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const payFormRef = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState(
     updateBill.bind(null, bill.id),
     { error: null }
   );
+  const [payError, setPayError] = useState<string | null>(null);
+  const [payPending, setPayPending] = useState(false);
 
   const today = new Date();
   const currentDay = today.getDate();
@@ -44,10 +59,6 @@ export function BillRow({ bill, categories }: { bill: Bill; categories: Category
     bill.due_day != null &&
     bill.due_day < currentDay;
 
-  async function handleMarkPaid() {
-    await markBillPaid(bill.id, todayStr());
-  }
-
   async function handleDelete() {
     await deleteBill(bill.id);
   }
@@ -55,6 +66,21 @@ export function BillRow({ bill, categories }: { bill: Bill; categories: Category
   async function handleEdit(formData: FormData) {
     await action(formData);
     setEditOpen(false);
+  }
+
+  async function handlePay(formData: FormData) {
+    setPayPending(true);
+    const result = await payBill(bill.id, { error: null }, formData);
+    setPayPending(false);
+
+    if (result.error) {
+      setPayError(result.error);
+      return;
+    }
+
+    setPayError(null);
+    payFormRef.current?.reset();
+    setPayOpen(false);
   }
 
   return (
@@ -84,7 +110,7 @@ export function BillRow({ bill, categories }: { bill: Bill; categories: Category
           <div className="flex flex-col gap-1.5 items-end">
             {!paidThisMonth && (
               <button
-                onClick={handleMarkPaid}
+                onClick={() => setPayOpen(true)}
                 className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700"
               >
                 Mark Paid
@@ -99,6 +125,75 @@ export function BillRow({ bill, categories }: { bill: Bill; categories: Category
           </div>
         </div>
       </div>
+
+      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Pay Bill">
+        <form ref={payFormRef} action={handlePay} className="flex flex-col gap-3">
+          <input type="hidden" name="bill_name" value={bill.name} />
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`pay-account-${bill.id}`} className="text-sm font-medium">Pay From</label>
+            <select
+              id={`pay-account-${bill.id}`}
+              name="account_id"
+              required
+              defaultValue={defaultAccountId}
+              className={SELECT_CLASS}
+              style={SELECT_CHEVRON}
+            >
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`pay-category-${bill.id}`} className="text-sm font-medium">Category</label>
+            <select
+              id={`pay-category-${bill.id}`}
+              name="category_id"
+              required
+              defaultValue={bill.category_id ?? ""}
+              className={SELECT_CLASS}
+              style={SELECT_CHEVRON}
+            >
+              {!bill.category_id && <option value="">— Pilih kategori —</option>}
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <AmountInput
+            id={`pay-amount-${bill.id}`}
+            name="amount"
+            label="Amount"
+            defaultValue={bill.amount ?? undefined}
+            required
+          />
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`pay-date-${bill.id}`} className="text-sm font-medium">Date</label>
+            <input
+              id={`pay-date-${bill.id}`}
+              name="paid_date"
+              type="date"
+              required
+              defaultValue={todayStr()}
+              className={FIELD_CLASS}
+            />
+          </div>
+
+          {payError && <p className="text-sm text-red-500">{payError}</p>}
+
+          <button
+            type="submit"
+            disabled={payPending}
+            className="rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {payPending ? "Saving..." : "Confirm Payment"}
+          </button>
+        </form>
+      </Modal>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Bill">
         <form ref={formRef} action={handleEdit} className="flex flex-col gap-3">

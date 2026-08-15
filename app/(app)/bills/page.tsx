@@ -6,14 +6,22 @@ import { BillRow } from "@/components/bills/BillRow";
 export default async function BillsPage() {
   const supabase = await createClient();
 
-  const [{ data: bills }, { data: categories }] = await Promise.all([
-    supabase
-      .from("bills")
-      .select("id, name, amount, due_day, category_id, last_paid_date, is_active")
-      .eq("is_active", true)
-      .order("due_day", { ascending: true, nullsFirst: false }),
-    supabase.from("categories").select("id, name").eq("type", "expense").eq("is_archived", false),
-  ]);
+  const [{ data: bills }, { data: categories }, { data: accounts }, { data: userResult }] =
+    await Promise.all([
+      supabase
+        .from("bills")
+        .select("id, name, amount, due_day, category_id, last_paid_date, is_active")
+        .eq("is_active", true)
+        .order("due_day", { ascending: true, nullsFirst: false }),
+      supabase.from("categories").select("id, name").eq("type", "expense").eq("is_archived", false),
+      supabase.from("accounts").select("id, name, owner_id, is_main").eq("is_archived", false),
+      supabase.auth.getUser(),
+    ]);
+
+  const currentUserId = userResult.user?.id;
+  const defaultAccountId =
+    (accounts ?? []).find((a) => a.owner_id === currentUserId && a.is_main)?.id ??
+    (accounts ?? []).find((a) => a.owner_id === currentUserId)?.id;
 
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
@@ -43,7 +51,13 @@ export default async function BillsPage() {
       {unpaid.length > 0 && (
         <div className="flex flex-col gap-3">
           {unpaid.map((b) => (
-            <BillRow key={b.id} bill={b} categories={categories ?? []} />
+            <BillRow
+              key={b.id}
+              bill={b}
+              categories={categories ?? []}
+              accounts={accounts ?? []}
+              defaultAccountId={defaultAccountId}
+            />
           ))}
         </div>
       )}
@@ -52,7 +66,13 @@ export default async function BillsPage() {
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium text-neutral-400">Paid This Month</h2>
           {paid.map((b) => (
-            <BillRow key={b.id} bill={b} categories={categories ?? []} />
+            <BillRow
+              key={b.id}
+              bill={b}
+              categories={categories ?? []}
+              accounts={accounts ?? []}
+              defaultAccountId={defaultAccountId}
+            />
           ))}
         </section>
       )}

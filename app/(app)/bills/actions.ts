@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { triggerBudgetCheck } from "@/lib/push/budgetCheck";
 
 export type BillFormState = { error: string | null };
 
@@ -63,14 +64,57 @@ export async function updateBill(
   return { error: null };
 }
 
-export async function markBillPaid(id: string, paidDate: string): Promise<BillFormState> {
+export async function payBill(
+  id: string,
+  _prev: BillFormState,
+  formData: FormData
+): Promise<BillFormState> {
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { data: membership } = await supabase
+    .from("household_members")
+    .select("household_id")
+    .eq("user_id", user.id)
+    .single();
+  if (!membership) return { error: "No household found." };
+
+  const accountId = formData.get("account_id") as string;
+  const categoryId = formData.get("category_id") as string;
+  const amount = Number(formData.get("amount"));
+  const paidDate = formData.get("paid_date") as string;
+  const billName = formData.get("bill_name") as string;
+
+  if (!accountId) return { error: "Pilih account dulu." };
+  if (!categoryId) return { error: "Pilih kategori dulu." };
+  if (!amount || amount <= 0) return { error: "Amount harus lebih dari 0." };
+
+  const { error: txError } = await supabase.from("transactions").insert({
+    household_id: membership.household_id,
+    owner_id: user.id,
+    type: "expense",
+    account_id: accountId,
+    category_id: categoryId,
+    amount,
+    description: billName,
+    transaction_date: paidDate,
+  });
+  if (txError) return { error: txError.message };
+
+  const { error: billError } = await supabase
     .from("bills")
     .update({ last_paid_date: paidDate })
     .eq("id", id);
-  if (error) return { error: error.message };
+  if (billError) return { error: billError.message };
+
   revalidatePath("/bills");
+  revalidatePath("/transactions");
+  revalidatePath("/accounts");
+  revalidatePath("/");
+
+  triggerBudgetCheck(membership.household_id).catch(() => {});
+
   return { error: null };
 }
 

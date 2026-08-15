@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { monthRange, yearRange, toDateStr, currentMonthStr } from "@/lib/date";
+import { monthRange, yearRange, currentMonthStr } from "@/lib/date";
 import { BalanceVisibilityProvider } from "@/components/home/BalanceVisibilityContext";
 import { HideBalanceButton } from "@/components/home/HideBalanceButton";
 import { MoreMenuButton } from "@/components/home/MoreMenuButton";
@@ -51,7 +52,7 @@ export default async function DashboardPage({
   let periodLabel: string | null = null;
   let periodTransactionsQuery = supabase
     .from("transactions")
-    .select("type, amount, saving_goal_id, category_id, owner_id");
+    .select("type, amount, saving_goal_id, category_id, owner_id, transaction_date");
   if (period === "month") {
     const { from, to, label } = monthRange(offset);
     periodTransactionsQuery = periodTransactionsQuery
@@ -66,7 +67,10 @@ export default async function DashboardPage({
     periodLabel = label;
   }
 
-  // Trend: last 6 months — removed, not needed
+  // The selected period's range already covers the current month whenever
+  // offset is 0 (or period is "all") — reuse periodTransactions for the
+  // budget section instead of firing a second, overlapping query.
+  const periodCoversCurrentMonth = period === "all" || offset === 0;
 
   const [
     { data: accounts },
@@ -91,12 +95,14 @@ export default async function DashboardPage({
     supabase.from("categories").select("id, name"),
     periodTransactionsQuery,
     supabase.from("budgets").select("id, category_id, amount").eq("month", currentMonthStr()),
-    supabase
-      .from("transactions")
-      .select("category_id, amount")
-      .eq("type", "expense")
-      .gte("transaction_date", `${currentMonthStr()}-01`)
-      .lte("transaction_date", `${currentMonthStr()}-31`),
+    periodCoversCurrentMonth
+      ? Promise.resolve({ data: null })
+      : supabase
+          .from("transactions")
+          .select("category_id, amount")
+          .eq("type", "expense")
+          .gte("transaction_date", `${currentMonthStr()}-01`)
+          .lte("transaction_date", `${currentMonthStr()}-31`),
     supabase
       .from("investment_holdings")
       .select("id, name, ticker, current_value, owner_id")
@@ -150,8 +156,14 @@ export default async function DashboardPage({
   }
 
   // Budget: spent per category for current month
+  const currentMonth = currentMonthStr();
+  const currentMonthSource = periodCoversCurrentMonth
+    ? (periodTransactions ?? []).filter(
+        (t) => t.type === "expense" && t.transaction_date.startsWith(currentMonth)
+      )
+    : currentMonthTransactions ?? [];
   const currentMonthSpent = new Map<string, number>();
-  for (const t of currentMonthTransactions ?? []) {
+  for (const t of currentMonthSource) {
     if (!t.category_id) continue;
     currentMonthSpent.set(t.category_id, (currentMonthSpent.get(t.category_id) ?? 0) + t.amount);
   }
@@ -216,7 +228,7 @@ export default async function DashboardPage({
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium text-neutral-500">Budget This Month</h2>
-              <a href="/budget" className="text-xs text-neutral-400">See all ›</a>
+              <Link href="/budget" className="text-xs text-neutral-400">See all ›</Link>
             </div>
             {budgetList.map((b) => {
               const spent = currentMonthSpent.get(b.category_id) ?? 0;
@@ -354,7 +366,7 @@ export default async function DashboardPage({
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium text-neutral-500">Investments</h2>
-              <a href="/investments" className="text-xs text-neutral-400">See all ›</a>
+              <Link href="/investments" className="text-xs text-neutral-400">See all ›</Link>
             </div>
             {(() => {
               const holdings = investmentHoldings ?? [];

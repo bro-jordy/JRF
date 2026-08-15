@@ -9,13 +9,12 @@ export function PushSubscribeButton() {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator && "PushManager" in window) {
+    if (!("serviceWorker" in navigator && "PushManager" in window)) return;
+    navigator.serviceWorker.ready.then(async (reg) => {
+      const sub = await reg.pushManager.getSubscription();
       setSupported(true);
-      navigator.serviceWorker.ready.then(async (reg) => {
-        const sub = await reg.pushManager.getSubscription();
-        setSubscribed(!!sub);
-      });
-    }
+      setSubscribed(!!sub);
+    });
   }, []);
 
   if (!supported) return null;
