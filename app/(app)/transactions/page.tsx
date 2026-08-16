@@ -3,6 +3,7 @@ import { AddTransactionForm } from "@/components/transactions/AddTransactionForm
 import { TransactionFilters } from "@/components/transactions/TransactionFilters";
 import { TransactionRow } from "@/components/transactions/TransactionRow";
 import { ExportCSVButton } from "@/components/transactions/ExportCSVButton";
+import { RealtimeTransactionsRefresher } from "@/components/transactions/RealtimeTransactionsRefresher";
 
 type Transaction = {
   id: string;
@@ -45,6 +46,10 @@ export default async function TransactionsPage({
   ]);
 
   const currentUserId = userResult.user?.id;
+  const { data: membership } = currentUserId
+    ? await supabase.from("household_members").select("household_id").eq("user_id", currentUserId).single()
+    : { data: null };
+  const householdId = membership?.household_id as string | undefined;
   const defaultAccountId =
     (accounts ?? []).find((a) => a.owner_id === currentUserId && a.is_main)?.id ??
     (accounts ?? []).find((a) => a.owner_id === currentUserId)?.id;
@@ -90,6 +95,7 @@ export default async function TransactionsPage({
 
   return (
     <main className="flex flex-col gap-6 px-4 pt-6 pb-24">
+      {householdId && <RealtimeTransactionsRefresher householdId={householdId} />}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Transactions</h1>
         <ExportCSVButton />

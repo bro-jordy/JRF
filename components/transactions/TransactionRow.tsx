@@ -8,6 +8,7 @@ import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
 import { Toggle } from "@/components/ui/Toggle";
+import { Toast, Spinner, type ToastState } from "@/components/ui/Toast";
 
 type Account = { id: string; name: string };
 type Category = { id: string; name: string; type: "income" | "expense" };
@@ -56,22 +57,33 @@ export function TransactionRow({
   const [isRecurring, setIsRecurring] = useState(transaction.is_recurring);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const submittingRef = useRef(false);
 
   const filteredCategories = categories.filter((c) => c.type === type);
 
   async function handleAction(formData: FormData) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setPending(true);
-    const result = await updateTransaction(transaction.id, { error: null }, formData);
-    setPending(false);
 
-    if (result.error) {
-      setError(result.error);
-      return;
+    try {
+      const result = await updateTransaction(transaction.id, { error: null }, formData);
+
+      if (result.error) {
+        setError(result.error);
+        setToast({ message: "Gagal simpan transaksi", variant: "error" });
+        return;
+      }
+
+      setError(null);
+      setToast({ message: "Sukses simpan transaksi", variant: "success" });
+      setOpen(false);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
     }
-
-    setError(null);
-    setOpen(false);
   }
 
   return (
@@ -249,8 +261,9 @@ export function TransactionRow({
           <button
             type="submit"
             disabled={pending}
-            className="mt-1 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
+            {pending && <Spinner />}
             {pending ? "Saving..." : "Save"}
           </button>
 
@@ -262,6 +275,8 @@ export function TransactionRow({
           />
         </form>
       </Modal>
+
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }

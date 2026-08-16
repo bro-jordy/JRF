@@ -6,6 +6,7 @@ import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
 import { Toggle } from "@/components/ui/Toggle";
+import { Toast, Spinner, type ToastState } from "@/components/ui/Toast";
 import { todayStr } from "@/lib/date";
 
 type Account = { id: string; name: string };
@@ -34,22 +35,37 @@ export function AddTransactionForm({
   const [isRecurring, setIsRecurring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const submittingRef = useRef(false);
 
   async function handleAction(formData: FormData) {
+    // Belt-and-suspenders against double taps: the disabled attribute below
+    // covers the common case, but this ref check is synchronous and closes
+    // the race window a fast double-tap can slip through before React
+    // re-renders the disabled button.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setPending(true);
-    const result = await createTransaction({ error: null }, formData);
-    setPending(false);
 
-    if (result.error) {
-      setError(result.error);
-      return;
+    try {
+      const result = await createTransaction({ error: null }, formData);
+
+      if (result.error) {
+        setError(result.error);
+        setToast({ message: "Gagal simpan transaksi", variant: "error" });
+        return;
+      }
+
+      setError(null);
+      setToast({ message: "Sukses simpan transaksi", variant: "success" });
+      formRef.current?.reset();
+      setType("expense");
+      setOpen(false);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
     }
-
-    setError(null);
-    formRef.current?.reset();
-    setType("expense");
-    setOpen(false);
   }
 
   const filteredCategories = categories.filter((c) => c.type === type);
@@ -207,12 +223,15 @@ export function AddTransactionForm({
           <button
             type="submit"
             disabled={pending}
-            className="mt-1 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
+            {pending && <Spinner />}
             {pending ? "Saving..." : "Save"}
           </button>
         </form>
       </Modal>
+
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }

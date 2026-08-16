@@ -8,9 +8,18 @@ const COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"
 
 export type Slice = { label: string; amount: number };
 
+// Rounded to a fixed precision because raw Math.cos/sin output can differ in
+// the last few decimal digits between JS engines (Node/V8 on the server vs.
+// Safari/WebKit on the client) — left unrounded, that tiny float drift made
+// the server-rendered and client-rendered path strings mismatch and threw a
+// hydration error.
+function round(n: number) {
+  return Math.round(n * 1000) / 1000;
+}
+
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const a = ((angleDeg - 90) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  return { x: round(cx + r * Math.cos(a)), y: round(cy + r * Math.sin(a)) };
 }
 
 function donutSegmentPath(

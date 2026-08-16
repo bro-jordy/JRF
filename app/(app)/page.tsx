@@ -7,6 +7,7 @@ import { MoreMenuButton } from "@/components/home/MoreMenuButton";
 import { PeriodToggle } from "@/components/home/PeriodToggle";
 import { Amount } from "@/components/home/Amount";
 import { ExpenseBreakdownChart, type Slice } from "@/components/home/ExpenseBreakdownChart";
+import { RealtimeTransactionsRefresher } from "@/components/transactions/RealtimeTransactionsRefresher";
 
 type Account = {
   id: string;
@@ -48,6 +49,14 @@ export default async function DashboardPage({
   const params = await searchParams;
   const period = params.period === "year" || params.period === "month" ? params.period : "all";
   const offset = Math.max(0, Number(params.offset) || 0);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: membership } = user
+    ? await supabase.from("household_members").select("household_id").eq("user_id", user.id).single()
+    : { data: null };
+  const householdId = membership?.household_id as string | undefined;
 
   let periodLabel: string | null = null;
   let periodTransactionsQuery = supabase
@@ -196,6 +205,7 @@ export default async function DashboardPage({
   return (
     <BalanceVisibilityProvider>
       <main className="flex flex-col gap-6 px-4 pt-6">
+        {householdId && <RealtimeTransactionsRefresher householdId={householdId} />}
         <div>
           <div className="flex items-center justify-between px-1">
             <p className="text-lg font-semibold tracking-wide text-neutral-400">
