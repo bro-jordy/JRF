@@ -32,14 +32,14 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="sticky bottom-0 flex border-t border-neutral-200 bg-white pb-[env(safe-area-inset-bottom)]">
+    <nav className="sticky bottom-0 flex border-t border-neutral-200 bg-white">
       {ITEMS.map(({ href, label, Icon }) => {
         const active = pathname === href;
         return (
           <Link
             key={href}
             href={href}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-center text-xs font-medium ${
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] text-center text-xs font-medium ${
               active ? "text-neutral-900" : "text-neutral-400"
             }`}
           >

@@ -33,6 +33,10 @@ const TYPES = [
   { value: "transfer", label: "Transfer" },
 ];
 
+// See AddTransactionForm — keeps the disabled/spinner state visible long
+// enough to actually register even when the save round-trip is very fast.
+const MIN_PENDING_MS = 400;
+
 export function TransactionRow({
   transaction,
   accounts,
@@ -69,7 +73,10 @@ export function TransactionRow({
     setPending(true);
 
     try {
-      const result = await updateTransaction(transaction.id, { error: null }, formData);
+      const [result] = await Promise.all([
+        updateTransaction(transaction.id, { error: null }, formData),
+        new Promise((resolve) => setTimeout(resolve, MIN_PENDING_MS)),
+      ]);
 
       if (result.error) {
         setError(result.error);

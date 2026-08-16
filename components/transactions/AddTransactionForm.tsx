@@ -19,6 +19,11 @@ const TYPES = [
   { value: "transfer", label: "Transfer" },
 ];
 
+// Supabase round-trips are often fast enough (<150ms) that the disabled/
+// spinner state flashes and disappears before it's perceptible — hold it
+// visible for at least this long so "Saving..." always actually registers.
+const MIN_PENDING_MS = 400;
+
 export function AddTransactionForm({
   accounts,
   categories,
@@ -49,7 +54,10 @@ export function AddTransactionForm({
     setPending(true);
 
     try {
-      const result = await createTransaction({ error: null }, formData);
+      const [result] = await Promise.all([
+        createTransaction({ error: null }, formData),
+        new Promise((resolve) => setTimeout(resolve, MIN_PENDING_MS)),
+      ]);
 
       if (result.error) {
         setError(result.error);
