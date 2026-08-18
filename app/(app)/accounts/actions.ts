@@ -3,20 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createAccount(formData: FormData) {
+export type AccountFormState = { error: string | null };
+
+export async function createAccount(
+  _prevState: AccountFormState,
+  formData: FormData
+): Promise<AccountFormState> {
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return { error: "Not signed in." };
 
   const { data: membership } = await supabase
     .from("household_members")
     .select("household_id")
     .eq("user_id", user.id)
     .single();
-  if (!membership) return;
+  if (!membership) return { error: "No household found." };
 
   const type = formData.get("type") as string;
   const creditLimitRaw = formData.get("credit_limit");
@@ -27,7 +32,7 @@ export async function createAccount(formData: FormData) {
     await supabase.from("accounts").update({ is_main: false }).eq("owner_id", ownerId);
   }
 
-  await supabase.from("accounts").insert({
+  const { error } = await supabase.from("accounts").insert({
     household_id: membership.household_id,
     owner_id: ownerId,
     name: formData.get("name") as string,
@@ -39,12 +44,19 @@ export async function createAccount(formData: FormData) {
     is_main: isMain,
   });
 
+  if (error) return { error: error.message };
+
   revalidatePath("/accounts");
   revalidatePath("/");
   revalidatePath("/transactions");
+  return { error: null };
 }
 
-export async function updateAccount(id: string, formData: FormData) {
+export async function updateAccount(
+  id: string,
+  _prevState: AccountFormState,
+  formData: FormData
+): Promise<AccountFormState> {
   const supabase = await createClient();
 
   const type = formData.get("type") as string;
@@ -60,7 +72,7 @@ export async function updateAccount(id: string, formData: FormData) {
       .neq("id", id);
   }
 
-  await supabase
+  const { error } = await supabase
     .from("accounts")
     .update({
       name: formData.get("name") as string,
@@ -74,9 +86,12 @@ export async function updateAccount(id: string, formData: FormData) {
     })
     .eq("id", id);
 
+  if (error) return { error: error.message };
+
   revalidatePath("/accounts");
   revalidatePath("/");
   revalidatePath("/transactions");
+  return { error: null };
 }
 
 export async function archiveAccount(id: string) {

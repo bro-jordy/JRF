@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { updateBill, payBill, deleteBill } from "@/app/(app)/bills/actions";
 import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 import { formatIDR } from "@/lib/format";
 import { todayStr } from "@/lib/date";
 
@@ -37,12 +40,16 @@ export function BillRow({
   const [payOpen, setPayOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const payFormRef = useRef<HTMLFormElement>(null);
-  const [state, action, pending] = useActionState(
-    updateBill.bind(null, bill.id),
-    { error: null }
-  );
+  const submittingRef = useRef(false);
+  const paySubmittingRef = useRef(false);
+
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [editToast, setEditToast] = useState<ToastState | null>(null);
+
   const [payError, setPayError] = useState<string | null>(null);
   const [payPending, setPayPending] = useState(false);
+  const [payToast, setPayToast] = useState<ToastState | null>(null);
 
   const today = new Date();
   const currentDay = today.getDate();
@@ -64,23 +71,48 @@ export function BillRow({
   }
 
   async function handleEdit(formData: FormData) {
-    await action(formData);
-    setEditOpen(false);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setPending(true);
+
+    try {
+      const result = await saveWithFeedback(
+        () => updateBill(bill.id, { error: null }, formData),
+        {
+          entity: "tagihan",
+          setToast: setEditToast,
+          onSuccess: () => setEditOpen(false),
+        }
+      );
+      setError(result.error);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
+    }
   }
 
   async function handlePay(formData: FormData) {
+    if (paySubmittingRef.current) return;
+    paySubmittingRef.current = true;
     setPayPending(true);
-    const result = await payBill(bill.id, { error: null }, formData);
-    setPayPending(false);
 
-    if (result.error) {
+    try {
+      const result = await saveWithFeedback(
+        () => payBill(bill.id, { error: null }, formData),
+        {
+          entity: "pembayaran tagihan",
+          setToast: setPayToast,
+          onSuccess: () => {
+            payFormRef.current?.reset();
+            setPayOpen(false);
+          },
+        }
+      );
       setPayError(result.error);
-      return;
+    } finally {
+      paySubmittingRef.current = false;
+      setPayPending(false);
     }
-
-    setPayError(null);
-    payFormRef.current?.reset();
-    setPayOpen(false);
   }
 
   return (
@@ -185,15 +217,15 @@ export function BillRow({
 
           {payError && <p className="text-sm text-red-500">{payError}</p>}
 
-          <button
-            type="submit"
-            disabled={payPending}
-            className="rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {payPending ? "Saving..." : "Confirm Payment"}
-          </button>
+          <SaveButton
+            pending={payPending}
+            label="Confirm Payment"
+            className="flex items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          />
         </form>
       </Modal>
+
+      {payToast && <Toast toast={payToast} onDone={() => setPayToast(null)} />}
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Bill">
         <form ref={formRef} action={handleEdit} className="flex flex-col gap-3">
@@ -224,14 +256,17 @@ export function BillRow({
             </div>
           </div>
 
-          {state.error && <p className="text-sm text-red-500">{state.error}</p>}
+          {error && <p className="text-sm text-red-500">{error}</p>}
 
-          <button type="submit" disabled={pending} className="rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50">
-            {pending ? "Saving..." : "Save"}
-          </button>
+          <SaveButton
+            pending={pending}
+            className="flex items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          />
           <ConfirmDeleteButton onConfirm={handleDelete} label="Delete Bill" />
         </form>
       </Modal>
+
+      {editToast && <Toast toast={editToast} onDone={() => setEditToast(null)} />}
     </>
   );
 }

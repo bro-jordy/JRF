@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { updateHoldingValue, deleteHolding } from "@/app/(app)/investments/actions";
 import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 import { formatIDR } from "@/lib/format";
 import Link from "next/link";
 
@@ -20,12 +23,11 @@ type Holding = {
 
 export function HoldingRow({ holding }: { holding: Holding }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
-
-  const [state, action, pending] = useActionState(
-    updateHoldingValue.bind(null, holding.id),
-    { error: null }
-  );
+  const submittingRef = useRef(false);
 
   const gainLoss = holding.current_value - holding.total_invested;
   const gainPct = holding.total_invested > 0
@@ -34,8 +36,24 @@ export function HoldingRow({ holding }: { holding: Holding }) {
   const isGain = gainLoss >= 0;
 
   async function handleAction(formData: FormData) {
-    await action(formData);
-    setOpen(false);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setPending(true);
+
+    try {
+      const result = await saveWithFeedback(
+        () => updateHoldingValue(holding.id, { error: null }, formData),
+        {
+          entity: "investasi",
+          setToast,
+          onSuccess: () => setOpen(false),
+        }
+      );
+      setError(result.error);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
+    }
   }
 
   async function handleDelete() {
@@ -89,19 +107,18 @@ export function HoldingRow({ holding }: { holding: Holding }) {
             <AmountInput id={`hv-${holding.id}`} name="current_value" required defaultValue={holding.current_value} />
           </div>
 
-          {state.error && <p className="text-sm text-red-500">{state.error}</p>}
+          {error && <p className="text-sm text-red-500">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {pending ? "Saving..." : "Save"}
-          </button>
+          <SaveButton
+            pending={pending}
+            className="flex items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          />
 
           <ConfirmDeleteButton onConfirm={handleDelete} label="Delete Holding" />
         </form>
       </Modal>
+
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }

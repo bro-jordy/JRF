@@ -8,7 +8,9 @@ import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
 import { Toggle } from "@/components/ui/Toggle";
-import { Toast, Spinner, type ToastState } from "@/components/ui/Toast";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 
 type Account = { id: string; name: string };
 type Category = { id: string; name: string; type: "income" | "expense" };
@@ -32,10 +34,6 @@ const TYPES = [
   { value: "income", label: "Income" },
   { value: "transfer", label: "Transfer" },
 ];
-
-// See AddTransactionForm — keeps the disabled/spinner state visible long
-// enough to actually register even when the save round-trip is very fast.
-const MIN_PENDING_MS = 400;
 
 export function TransactionRow({
   transaction,
@@ -73,20 +71,15 @@ export function TransactionRow({
     setPending(true);
 
     try {
-      const [result] = await Promise.all([
-        updateTransaction(transaction.id, { error: null }, formData),
-        new Promise((resolve) => setTimeout(resolve, MIN_PENDING_MS)),
-      ]);
-
-      if (result.error) {
-        setError(result.error);
-        setToast({ message: "Gagal simpan transaksi", variant: "error" });
-        return;
-      }
-
-      setError(null);
-      setToast({ message: "Sukses simpan transaksi", variant: "success" });
-      setOpen(false);
+      const result = await saveWithFeedback(
+        () => updateTransaction(transaction.id, { error: null }, formData),
+        {
+          entity: "transaksi",
+          setToast,
+          onSuccess: () => setOpen(false),
+        }
+      );
+      setError(result.error);
     } finally {
       submittingRef.current = false;
       setPending(false);
@@ -265,14 +258,7 @@ export function TransactionRow({
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {pending && <Spinner />}
-            {pending ? "Saving..." : "Save"}
-          </button>
+          <SaveButton pending={pending} />
 
           <ConfirmDeleteButton
             onConfirm={async () => {

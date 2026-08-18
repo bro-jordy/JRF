@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { upsertBudget, deleteBudget } from "@/app/(app)/budget/actions";
 import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 import { formatIDR } from "@/lib/format";
 
 type Category = { id: string; name: string; type: "income" | "expense" };
@@ -27,10 +30,12 @@ export function BudgetRow({
   spent: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const submittingRef = useRef(false);
   const expenseCategories = categories.filter((c) => c.type === "expense");
-
-  const [state, action, pending] = useActionState(upsertBudget, { error: null });
 
   const category = categories.find((c) => c.id === budget.category_id);
   const pct = Math.min(100, Math.round((spent / budget.amount) * 100));
@@ -38,8 +43,21 @@ export function BudgetRow({
   const barColor = isOver ? "bg-red-500" : pct >= 80 ? "bg-amber-400" : "bg-emerald-500";
 
   async function handleAction(formData: FormData) {
-    await action(formData);
-    setOpen(false);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setPending(true);
+
+    try {
+      const result = await saveWithFeedback(() => upsertBudget({ error: null }, formData), {
+        entity: "budget",
+        setToast,
+        onSuccess: () => setOpen(false),
+      });
+      setError(result.error);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
+    }
   }
 
   async function handleDelete() {
@@ -96,19 +114,19 @@ export function BudgetRow({
             <AmountInput id={`ba-${budget.id}`} name="amount" required defaultValue={budget.amount} />
           </div>
 
-          {state.error && <p className="text-sm text-red-500">{state.error}</p>}
+          {error && <p className="text-sm text-red-500">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {pending ? "Saving..." : "Save Budget"}
-          </button>
+          <SaveButton
+            pending={pending}
+            label="Save Budget"
+            className="flex items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          />
 
           <ConfirmDeleteButton onConfirm={handleDelete} label="Delete Budget" />
         </form>
       </Modal>
+
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }

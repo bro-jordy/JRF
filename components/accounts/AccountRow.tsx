@@ -8,6 +8,9 @@ import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
 import { Toggle } from "@/components/ui/Toggle";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABEL } from "@/lib/account-types";
 
 type Account = {
@@ -33,7 +36,32 @@ export function AccountRow({
   const [open, setOpen] = useState(false);
   const [type, setType] = useState(account.type);
   const [isMain, setIsMain] = useState(account.is_main);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const submittingRef = useRef(false);
+
+  async function handleAction(formData: FormData) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setPending(true);
+
+    try {
+      const result = await saveWithFeedback(
+        () => updateAccount(account.id, { error: null }, formData),
+        {
+          entity: "akun",
+          setToast,
+          onSuccess: () => setOpen(false),
+        }
+      );
+      setError(result.error);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
+    }
+  }
 
   return (
     <>
@@ -63,14 +91,7 @@ export function AccountRow({
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Edit Account">
-        <form
-          ref={formRef}
-          action={async (formData) => {
-            await updateAccount(account.id, formData);
-            setOpen(false);
-          }}
-          className="flex flex-col gap-3"
-        >
+        <form ref={formRef} action={handleAction} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <label htmlFor={`name-${account.id}`} className="text-sm font-medium">
               Name
@@ -147,12 +168,9 @@ export function AccountRow({
             name="is_main"
           />
 
-          <button
-            type="submit"
-            className="mt-1 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white"
-          >
-            Save
-          </button>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <SaveButton pending={pending} />
 
           <ConfirmDeleteButton
             onConfirm={async () => {
@@ -162,6 +180,8 @@ export function AccountRow({
           />
         </form>
       </Modal>
+
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }

@@ -7,6 +7,9 @@ import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDeleteButton } from "@/components/ui/ConfirmDeleteButton";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 
 type GoalProgress = {
   saving_goal_id: string;
@@ -19,9 +22,34 @@ type GoalProgress = {
 
 export function GoalRow({ goal }: { goal: GoalProgress }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const submittingRef = useRef(false);
   const progress =
     goal.target_amount > 0 ? Math.min(goal.current_amount / goal.target_amount, 1) : 0;
+
+  async function handleAction(formData: FormData) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setPending(true);
+
+    try {
+      const result = await saveWithFeedback(
+        () => updateGoal(goal.saving_goal_id, { error: null }, formData),
+        {
+          entity: "goal",
+          setToast,
+          onSuccess: () => setOpen(false),
+        }
+      );
+      setError(result.error);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
+    }
+  }
 
   return (
     <>
@@ -47,14 +75,7 @@ export function GoalRow({ goal }: { goal: GoalProgress }) {
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Edit Goal">
-        <form
-          ref={formRef}
-          action={async (formData) => {
-            await updateGoal(goal.saving_goal_id, formData);
-            setOpen(false);
-          }}
-          className="flex flex-col gap-3"
-        >
+        <form ref={formRef} action={handleAction} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <label htmlFor={`name-${goal.saving_goal_id}`} className="text-sm font-medium">
               Name
@@ -88,12 +109,9 @@ export function GoalRow({ goal }: { goal: GoalProgress }) {
             />
           </div>
 
-          <button
-            type="submit"
-            className="mt-1 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white"
-          >
-            Save
-          </button>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <SaveButton pending={pending} />
 
           <ConfirmDeleteButton
             onConfirm={async () => {
@@ -103,6 +121,8 @@ export function GoalRow({ goal }: { goal: GoalProgress }) {
           />
         </form>
       </Modal>
+
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }

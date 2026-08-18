@@ -6,7 +6,9 @@ import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS, SELECT_CLASS, SELECT_CHEVRON } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
 import { Toggle } from "@/components/ui/Toggle";
-import { Toast, Spinner, type ToastState } from "@/components/ui/Toast";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 import { todayStr } from "@/lib/date";
 
 type Account = { id: string; name: string };
@@ -18,11 +20,6 @@ const TYPES = [
   { value: "income", label: "Income" },
   { value: "transfer", label: "Transfer" },
 ];
-
-// Supabase round-trips are often fast enough (<150ms) that the disabled/
-// spinner state flashes and disappears before it's perceptible — hold it
-// visible for at least this long so "Saving..." always actually registers.
-const MIN_PENDING_MS = 400;
 
 export function AddTransactionForm({
   accounts,
@@ -45,31 +42,21 @@ export function AddTransactionForm({
   const submittingRef = useRef(false);
 
   async function handleAction(formData: FormData) {
-    // Belt-and-suspenders against double taps: the disabled attribute below
-    // covers the common case, but this ref check is synchronous and closes
-    // the race window a fast double-tap can slip through before React
-    // re-renders the disabled button.
     if (submittingRef.current) return;
     submittingRef.current = true;
     setPending(true);
 
     try {
-      const [result] = await Promise.all([
-        createTransaction({ error: null }, formData),
-        new Promise((resolve) => setTimeout(resolve, MIN_PENDING_MS)),
-      ]);
-
-      if (result.error) {
-        setError(result.error);
-        setToast({ message: "Gagal simpan transaksi", variant: "error" });
-        return;
-      }
-
-      setError(null);
-      setToast({ message: "Sukses simpan transaksi", variant: "success" });
-      formRef.current?.reset();
-      setType("expense");
-      setOpen(false);
+      const result = await saveWithFeedback(() => createTransaction({ error: null }, formData), {
+        entity: "transaksi",
+        setToast,
+        onSuccess: () => {
+          formRef.current?.reset();
+          setType("expense");
+          setOpen(false);
+        },
+      });
+      setError(result.error);
     } finally {
       submittingRef.current = false;
       setPending(false);
@@ -228,14 +215,7 @@ export function AddTransactionForm({
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {pending && <Spinner />}
-            {pending ? "Saving..." : "Save"}
-          </button>
+          <SaveButton pending={pending} />
         </form>
       </Modal>
 

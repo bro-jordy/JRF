@@ -5,10 +5,38 @@ import { createGoal } from "@/app/(app)/goals/actions";
 import { AmountInput } from "@/components/ui/AmountInput";
 import { FIELD_CLASS } from "@/components/ui/form-styles";
 import { Modal } from "@/components/ui/Modal";
+import { SaveButton } from "@/components/ui/SaveButton";
+import { Toast, type ToastState } from "@/components/ui/Toast";
+import { saveWithFeedback } from "@/lib/hooks/saveForm";
 
 export function AddGoalForm() {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const submittingRef = useRef(false);
+
+  async function handleAction(formData: FormData) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setPending(true);
+
+    try {
+      const result = await saveWithFeedback(() => createGoal({ error: null }, formData), {
+        entity: "goal",
+        setToast,
+        onSuccess: () => {
+          formRef.current?.reset();
+          setOpen(false);
+        },
+      });
+      setError(result.error);
+    } finally {
+      submittingRef.current = false;
+      setPending(false);
+    }
+  }
 
   return (
     <>
@@ -20,15 +48,7 @@ export function AddGoalForm() {
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Add Goal">
-        <form
-          ref={formRef}
-          action={async (formData) => {
-            await createGoal(formData);
-            formRef.current?.reset();
-            setOpen(false);
-          }}
-          className="flex flex-col gap-3"
-        >
+        <form ref={formRef} action={handleAction} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <label htmlFor="name" className="text-sm font-medium">
               Name
@@ -45,14 +65,13 @@ export function AddGoalForm() {
             <input id="target_date" name="target_date" type="date" className={FIELD_CLASS} />
           </div>
 
-          <button
-            type="submit"
-            className="mt-1 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white"
-          >
-            Save
-          </button>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <SaveButton pending={pending} />
         </form>
       </Modal>
+
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }
